@@ -25,6 +25,8 @@ public class HomeController {
     @GetMapping("/index")
     public String getIndexPage(Model model, Page page) {
         // 方法调用前，SpringMVC 会自动实例化 Model 和 Page，并将 Page 注入 Model，因此不需要再 addAttribute
+        // Model 中的变量可以被 thymeleaf 访问，实现动态页面
+
         // rows 和 部分path 由服务器获取，其余要么从数据库读取，要么来自客户端
         page.setRows(discussPostService.findDiscussPostRows(0));
         page.setPath("/index");
