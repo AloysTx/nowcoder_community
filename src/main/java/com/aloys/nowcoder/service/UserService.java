@@ -1,6 +1,9 @@
 package com.aloys.nowcoder.service;
 
+import com.aloys.nowcoder.dao.LoginTicketMapper;
 import com.aloys.nowcoder.dao.UserMapper;
+import com.aloys.nowcoder.entity.LoginTicket;
+import com.aloys.nowcoder.entity.Page;
 import com.aloys.nowcoder.entity.User;
 import com.aloys.nowcoder.utils.CommonUtils;
 import com.aloys.nowcoder.utils.NowCoderConstants;
@@ -12,16 +15,16 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 @Service
 public class UserService implements NowCoderConstants {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private LoginTicketMapper loginTicketMapper;
 
     @Autowired
     private MailClient mailClient;
@@ -114,5 +117,57 @@ public class UserService implements NowCoderConstants {
         } else {
             return ACTIVATION_FAILURE;
         }
+    }
+
+    // 用户登录
+    // duration 表示登录凭证的有效持续时间（单位：秒），超过该世间就会 expire
+    public Map<String, Object> login(String username, String password, int duration) {
+        Map<String, Object> map = new HashMap<>();
+        // 空值处理
+        if (StringUtils.isBlank(username)) {
+            map.put("usernameMsg", "账号不能为空！");
+            return map;
+        } else if (StringUtils.isBlank(password)) {
+            map.put("passwordMsg", "密码不能为空！");
+            return map;
+        }
+
+        // 验证账号
+        User user = userMapper.selectByName(username);
+        // 验证账号是否存在
+        if (user == null) {
+            map.put("usernameMsg", "该账号不存在！");
+            return map;
+        }
+        // 验证账号是否激活
+        if (user.getStatus() == 0) {
+            map.put("usernameMsg", "该账号未激活！");
+            return map;
+        }
+
+        // 验证密码
+        password = CommonUtils.md5(password + user.getSalt());
+        if (!Objects.equals(user.getPassword(), password)) {
+            map.put("passwordMsg", "密码不正确！");
+            return map;
+        }
+
+        // 生成登录凭证
+        LoginTicket loginTicket = new LoginTicket();
+        loginTicket.setUserId(user.getId());
+        loginTicket.setTicket(CommonUtils.generateUUID());
+        loginTicket.setStatus(0);
+        loginTicket.setExpired(new Date(System.currentTimeMillis() + duration * 1000));
+        loginTicketMapper.insertLoginTicket(loginTicket);
+
+        // 登录成功，返回登录凭证给浏览器
+        map.put("ticket", loginTicket.getTicket());
+        return map;
+    }
+
+    // 退出时需要 ticket 登录凭证来关联是哪个用户要退出
+    public void logout(String ticket) {
+        // 把 ticket 对应用户登录状态设为 1 即可
+        loginTicketMapper.updateStatus(ticket, 1);
     }
 }

@@ -4,27 +4,35 @@ import com.aloys.nowcoder.entity.User;
 import com.aloys.nowcoder.service.UserService;
 import com.aloys.nowcoder.utils.NowCoderConstants;
 import com.google.code.kaptcha.Producer;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 
 import javax.imageio.ImageIO;
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.HashMap;
 import java.util.Map;
 
 @Controller
 public class LoginController implements NowCoderConstants {
 
     private static final Logger logger = LoggerFactory.getLogger(LoginController.class);
+
+    @Value("server.servlet.context-path")
+    private String contextPath;
 
     @Autowired
     UserService userService;
@@ -85,6 +93,42 @@ public class LoginController implements NowCoderConstants {
 
     }
 
+    @PostMapping("/login")
+    public String login(Model model, String username, String password, String verificationCode,
+                        boolean rememberMe, HttpServletResponse response, HttpSession session) {
+        // 检查验证码
+        String kaptcha = (String) session.getAttribute("kaptcha");
+        if(StringUtils.isBlank(kaptcha) || StringUtils.isBlank(verificationCode) || !verificationCode.equalsIgnoreCase(kaptcha)) {
+            model.addAttribute("verificationCodeMsg", "验证码错误！");
+            return "/site/login";
+        }
+        // 检查账号密码
+        int duration = rememberMe ? REMEMBER_DURATION : DEFAULT_DURATION;
+        Map<String, Object> map = userService.login(username, password, duration);
+        if (map.containsKey("ticket")) {
+            // 登录成功，将登录凭证的 Cookie 发送给页面
+            Cookie cookie = new Cookie("ticket", map.get("ticket").toString());
+            cookie.setPath(contextPath);
+            cookie.setMaxAge(duration);
+            response.addCookie(cookie);
+            // 重定向到主页
+            return "redirect:/index";
+        } else {
+            // 登录失败，返回错误信息
+            // 返回 usernameMsg，如果不是用户名出错，则该值为 null
+            model.addAttribute("usernameMsg", map.get("usernameMsg"));
+            // 同上
+            model.addAttribute("passwordMsg", map.get("passwordMsg"));
+            return "/site/login";
+        }
+    }
+
+    @GetMapping("/logout")
+    public String logout(@CookieValue("ticket") String ticket) {
+        userService.logout(ticket);
+        return "redirect:/login";
+    }
+
     // 因为下次登录时要校验 验证码 是否正确，所以需要存储验证码，而验证码是敏感信息，所以用 Session
     @GetMapping("/kaptcha")
     public void getKaptcha(HttpServletResponse response, HttpSession session) {
@@ -93,7 +137,7 @@ public class LoginController implements NowCoderConstants {
         BufferedImage image = kaptchaProducer.createImage(text);
 
         // 将验证码 text 存入 session
-        session.setAttribute("kapthca", image);
+        session.setAttribute("kaptcha", text);
 
         // image 输出给浏览器，因为 response 对象由 SpringMVC 维护，所以不必手动关闭流
         response.setContentType("image/png");
