@@ -42,6 +42,11 @@ public class UserService implements NowCoderConstants {
         return userMapper.selectById(id);
     }
 
+    // 通过 ticket 查询 login_ticket 记J录
+    public LoginTicket findLoginTicket(String ticket) {
+        return loginTicketMapper.selectByTicket(ticket);
+    }
+
     public Map<String, Object> register(User user) {
         Map<String, Object> map = new HashMap<>();
         if(user == null) {

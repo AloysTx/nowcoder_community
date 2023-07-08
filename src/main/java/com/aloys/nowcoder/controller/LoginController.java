@@ -97,8 +97,12 @@ public class LoginController implements NowCoderConstants {
     public String login(Model model, String username, String password, String verificationCode,
                         boolean rememberMe, HttpServletResponse response, HttpSession session) {
         // 检查验证码
+        if(StringUtils.isBlank(verificationCode)) {
+            model.addAttribute("verificationCodeMsg", "验证码不能为空！");
+            return "/site/login";
+        }
         String kaptcha = (String) session.getAttribute("kaptcha");
-        if(StringUtils.isBlank(kaptcha) || StringUtils.isBlank(verificationCode) || !verificationCode.equalsIgnoreCase(kaptcha)) {
+        if(StringUtils.isBlank(kaptcha) || !verificationCode.equalsIgnoreCase(kaptcha)) {
             model.addAttribute("verificationCodeMsg", "验证码错误！");
             return "/site/login";
         }
