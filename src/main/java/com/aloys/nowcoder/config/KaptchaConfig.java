@@ -11,6 +11,7 @@ import java.util.Properties;
 @Configuration
 public class KaptchaConfig {
 
+    // @Bean 注解表示创建一个第三方 Bean
     @Bean
     public Producer kaptchaProducer() {
         Properties properties = new Properties();

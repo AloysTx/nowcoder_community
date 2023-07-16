@@ -42,6 +42,10 @@ public class UserService implements NowCoderConstants {
         return userMapper.selectById(id);
     }
 
+    public User findUserByName(String name) {
+        return userMapper.selectByName(name);
+    }
+
     // 通过 ticket 查询 login_ticket 记J录
     public LoginTicket findLoginTicket(String ticket) {
         return loginTicketMapper.selectByTicket(ticket);
@@ -162,7 +166,7 @@ public class UserService implements NowCoderConstants {
         loginTicket.setUserId(user.getId());
         loginTicket.setTicket(CommonUtils.generateUUID());
         loginTicket.setStatus(0);
-        loginTicket.setExpired(new Date(System.currentTimeMillis() + duration * 1000));
+        loginTicket.setExpired(new Date(System.currentTimeMillis() + (long) duration * 1000));
         loginTicketMapper.insertLoginTicket(loginTicket);
 
         // 登录成功，返回登录凭证给浏览器
@@ -174,5 +178,12 @@ public class UserService implements NowCoderConstants {
     public void logout(String ticket) {
         // 把 ticket 对应用户登录状态设为 1 即可
         loginTicketMapper.updateStatus(ticket, 1);
+        // 单纯把 status 置 1 的话，每重新登录一次，就生成一个新的 login_ticket 存入数据库
+        // 是否需要删除对应 login_ticket 记录
+    }
+
+    // 更新用户头像，通过 userId 和 新头像的路径 headerUrl
+    public int updateHeader(int userId, String headerUrl) {
+        return userMapper.updateHeader(userId, headerUrl);
     }
 }

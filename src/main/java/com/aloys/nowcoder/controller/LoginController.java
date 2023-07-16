@@ -112,6 +112,8 @@ public class LoginController implements NowCoderConstants {
         if (map.containsKey("ticket")) {
             // 登录成功，将登录凭证的 Cookie 发送给页面
             Cookie cookie = new Cookie("ticket", map.get("ticket").toString());
+            // 相同 path 下同名 Cookie 后加入的会覆盖前加入的值
+            // 不同 path 同名 Cookie 视为不同 Cookie 对象，不会覆盖
             cookie.setPath(contextPath);
             cookie.setMaxAge(duration);
             response.addCookie(cookie);

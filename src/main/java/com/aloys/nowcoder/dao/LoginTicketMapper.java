@@ -9,6 +9,8 @@ public interface LoginTicketMapper {
 
     int insertLoginTicket(LoginTicket loginTicket);
 
+//    int deleteLoginTicket(String ticket);
+
     int updateStatus(@Param("ticket") String ticket, @Param("status") int status);
 
     LoginTicket selectByTicket(String ticket);

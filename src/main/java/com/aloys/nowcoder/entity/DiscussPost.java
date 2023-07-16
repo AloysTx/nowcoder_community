@@ -1,6 +1,6 @@
 package com.aloys.nowcoder.entity;
 
-import javax.xml.crypto.Data;
+import java.util.Date;
 
 public class DiscussPost {
     private int id;
@@ -9,14 +9,14 @@ public class DiscussPost {
     private String content;
     private int type;
     private int status;
-    private Data createTime;
+    private Date createTime;
     private int commentCount;
     private double score;
 
     public DiscussPost() {
     }
 
-    public DiscussPost(int id, int userId, String title, String content, int type, int status, Data createTime, int commentCount, double score) {
+    public DiscussPost(int id, int userId, String title, String content, int type, int status, Date createTime, int commentCount, double score) {
         this.id = id;
         this.userId = userId;
         this.title = title;
@@ -128,7 +128,7 @@ public class DiscussPost {
      * 获取
      * @return createTime
      */
-    public Data getCreateTime() {
+    public Date getCreateTime() {
         return createTime;
     }
 
@@ -136,7 +136,7 @@ public class DiscussPost {
      * 设置
      * @param createTime
      */
-    public void setCreateTime(Data createTime) {
+    public void setCreateTime(Date createTime) {
         this.createTime = createTime;
     }
 

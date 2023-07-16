@@ -9,6 +9,10 @@
         values (#{userId}, #{ticket}, #{status}, #{expired})
     </insert>
 
+<!--    <delete id="deleteLoginTicket">-->
+<!--        -->
+<!--    </delete>-->
+
     <update id="updateStatus">
         update `login_ticket` set `status` = #{status} where `ticket` = #{ticket}
     </update>
