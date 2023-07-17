@@ -6,6 +6,7 @@ import com.aloys.nowcoder.entity.Page;
 import com.aloys.nowcoder.entity.User;
 import com.aloys.nowcoder.service.CommentService;
 import com.aloys.nowcoder.service.DiscussPostService;
+import com.aloys.nowcoder.service.LikeService;
 import com.aloys.nowcoder.service.UserService;
 import com.aloys.nowcoder.utils.CommonUtils;
 import com.aloys.nowcoder.utils.HostHolder;
@@ -28,6 +29,9 @@ public class DiscussPostController implements NowCoderConstants {
 
     @Autowired
     private CommentService commentService;
+
+    @Autowired
+    private LikeService likeService;
 
     @Autowired
     private HostHolder hostHolder;
@@ -74,6 +78,14 @@ public class DiscussPostController implements NowCoderConstants {
         // 再查询帖子作者
         User user = userService.findUserById(discussPost.getUserId());
         model.addAttribute("user", user);
+        // 查询帖子点赞数
+        long likeCount = likeService.findEntityLikeCount(ENTITY_TYPE_POST, discussPost.getId());
+        model.addAttribute("likeCount", likeCount);
+        // 点赞状态
+        // 没登陆默认显示未点赞状态
+        int likeStatus = hostHolder.getUser() == null ? 0 :
+                likeService.findEntityLikeStatus(hostHolder.getUser().getId(), ENTITY_TYPE_POST, discussPost.getId());
+        model.addAttribute("likeStatus", likeStatus);
 
         // 设置评论分页
         page.setLimit(5);
@@ -96,6 +108,15 @@ public class DiscussPostController implements NowCoderConstants {
                 // 作者
                 commentVo.put("user", userService.findUserById(comment.getUserId()));
 
+                // 查询评论点赞数
+                likeCount = likeService.findEntityLikeCount(ENTITY_TYPE_COMMENT, comment.getId());
+                commentVo.put("likeCount", likeCount);
+                // 评论点赞状态
+                // 没登陆默认显示未点赞状态
+                likeStatus = hostHolder.getUser() == null ? 0 :
+                        likeService.findEntityLikeStatus(hostHolder.getUser().getId(), ENTITY_TYPE_COMMENT, comment.getId());
+                commentVo.put("likeStatus", likeStatus);
+
                 // 回复列表，不分页，所以 limit 设置为 MXX_VALUE
                 List<Comment> replyList = commentService.findCommentsByEntity(ENTITY_TYPE_COMMENT,
                         comment.getId(), 0, Integer.MAX_VALUE);
@@ -109,10 +130,18 @@ public class DiscussPostController implements NowCoderConstants {
                         // 作者
                         replyVo.put("user", userService.findUserById(reply.getUserId()));
 
-
                         // 回复的目标
                         User target = reply.getTargetId() == 0 ? null : userService.findUserById(reply.getTargetId());
                         replyVo.put("target", target);
+
+                        // 查询回复点赞数
+                        likeCount = likeService.findEntityLikeCount(ENTITY_TYPE_COMMENT, reply.getId());
+                        replyVo.put("likeCount", likeCount);
+                        // 回复点赞状态
+                        // 没登陆默认显示未点赞状态
+                        likeStatus = hostHolder.getUser() == null ? 0 :
+                                likeService.findEntityLikeStatus(hostHolder.getUser().getId(), ENTITY_TYPE_COMMENT, reply.getId());
+                        replyVo.put("likeStatus", likeStatus);
 
                         replyVoList.add(replyVo);
                     }

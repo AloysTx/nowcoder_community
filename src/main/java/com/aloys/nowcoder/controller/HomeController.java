@@ -4,7 +4,9 @@ import com.aloys.nowcoder.entity.DiscussPost;
 import com.aloys.nowcoder.entity.Page;
 import com.aloys.nowcoder.entity.User;
 import com.aloys.nowcoder.service.DiscussPostService;
+import com.aloys.nowcoder.service.LikeService;
 import com.aloys.nowcoder.service.UserService;
+import com.aloys.nowcoder.utils.NowCoderConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -13,13 +15,16 @@ import org.springframework.web.bind.annotation.GetMapping;
 import java.util.*;
 
 @Controller
-public class HomeController {
+public class HomeController implements NowCoderConstants {
 
     @Autowired
     private DiscussPostService discussPostService;
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private LikeService likeService;
 
 //    @RequestMapping(path = "/index", method = RequestMethod.GET)
     @GetMapping("/index")
@@ -40,6 +45,11 @@ public class HomeController {
                 map.put("post", post);
                 User user = userService.findUserById(post.getUserId());
                 map.put("user", user);
+
+                // 获取贴子点赞数
+                long likeCount = likeService.findEntityLikeCount(ENTITY_TYPE_POST, post.getId());
+                map.put("likeCount", likeCount);
+
                 discussPosts.add(map);
             }
         }

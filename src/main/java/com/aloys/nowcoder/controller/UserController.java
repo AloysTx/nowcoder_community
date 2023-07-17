@@ -2,9 +2,12 @@ package com.aloys.nowcoder.controller;
 
 import com.aloys.nowcoder.annotation.LoginRequired;
 import com.aloys.nowcoder.entity.User;
+import com.aloys.nowcoder.service.FollowService;
+import com.aloys.nowcoder.service.LikeService;
 import com.aloys.nowcoder.service.UserService;
 import com.aloys.nowcoder.utils.CommonUtils;
 import com.aloys.nowcoder.utils.HostHolder;
+import com.aloys.nowcoder.utils.NowCoderConstants;
 import org.apache.catalina.startup.HomesUserDatabase;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -13,10 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
@@ -24,7 +24,7 @@ import java.io.*;
 
 @Controller
 @RequestMapping("/user")
-public class UserController {
+public class UserController implements NowCoderConstants {
 
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
@@ -38,10 +38,16 @@ public class UserController {
     private String uploadPath;
 
     @Autowired
-    UserService userService;
+    private UserService userService;
 
     @Autowired
-    HostHolder hostHolder;
+    private LikeService likeService;
+
+    @Autowired
+    private FollowService followService;
+
+    @Autowired
+    private HostHolder hostHolder;
 
     @LoginRequired
     @GetMapping("/setting")
@@ -106,5 +112,36 @@ public class UserController {
             logger.error("读取头像失败：" + e.getMessage());
             throw new RuntimeException(e);
         }
+    }
+
+    // 个人主页
+    @GetMapping(path = "/profile/{userId}")
+    public String getProfilePage(@PathVariable("userId") int userId, Model model) {
+        User user = userService.findUserById(userId);
+        if (user == null) {
+            throw new RuntimeException("该用户不存在！");
+        }
+
+        // 用户
+        model.addAttribute("user", user);
+        // 获赞数量
+        int likeCount = likeService.findUserLikeCount(userId);
+        model.addAttribute("likeCount", likeCount);
+
+        // 关注数量
+        long followeeCount = followService.findFolloweeCount(userId, ENTITY_TYPE_USER);
+        model.addAttribute("followeeCount", followeeCount);
+
+        // 粉丝数量
+        long followerCount = followService.findFollowerCount(ENTITY_TYPE_USER, userId);
+        model.addAttribute("followerCount", followerCount);
+
+        // 是否已关注
+        boolean hasFollowed = false;
+        if (hostHolder.getUser() != null) {
+            hasFollowed = followService.hasFollowed(hostHolder.getUser().getId(), ENTITY_TYPE_USER, userId);
+        }
+        model.addAttribute("hasFollowed", hasFollowed);
+        return "/site/profile";
     }
 }

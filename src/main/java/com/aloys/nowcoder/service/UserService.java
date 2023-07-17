@@ -8,14 +8,18 @@ import com.aloys.nowcoder.entity.User;
 import com.aloys.nowcoder.utils.CommonUtils;
 import com.aloys.nowcoder.utils.NowCoderConstants;
 import com.aloys.nowcoder.utils.MailClient;
+import com.aloys.nowcoder.utils.RedisKeyUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.juli.logging.Log;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class UserService implements NowCoderConstants {
@@ -23,14 +27,17 @@ public class UserService implements NowCoderConstants {
     @Autowired
     private UserMapper userMapper;
 
-    @Autowired
-    private LoginTicketMapper loginTicketMapper;
+//    @Autowired
+//    private LoginTicketMapper loginTicketMapper;
 
     @Autowired
     private MailClient mailClient;
 
     @Autowired
     private TemplateEngine templateEngine;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Value("${nowcoder.path.domain}")
     private String domain;
@@ -39,7 +46,12 @@ public class UserService implements NowCoderConstants {
     private String contextPath;
 
     public User findUserById(int id) {
-        return userMapper.selectById(id);
+//        return userMapper.selectById(id);
+        User user = getCache(id);
+        if(user == null) {
+            user = initCache(id);
+        }
+        return user;
     }
 
     public User findUserByName(String name) {
@@ -48,7 +60,9 @@ public class UserService implements NowCoderConstants {
 
     // 通过 ticket 查询 login_ticket 记J录
     public LoginTicket findLoginTicket(String ticket) {
-        return loginTicketMapper.selectByTicket(ticket);
+//        return loginTicketMapper.selectByTicket(ticket);
+        String redisKey = RedisKeyUtils.getTicketKey(ticket);
+        return (LoginTicket) redisTemplate.opsForValue().get(redisKey);
     }
 
     public Map<String, Object> register(User user) {
@@ -122,6 +136,7 @@ public class UserService implements NowCoderConstants {
             return ACTIVATION_REPEAT;
         } else if (user.getActivationCode().equals(code)) {
             userMapper.updateStatus(userId, 1);
+            clearCache(userId);
             return ACTIVATION_SUCCESS;
         } else {
             return ACTIVATION_FAILURE;
@@ -167,7 +182,10 @@ public class UserService implements NowCoderConstants {
         loginTicket.setTicket(CommonUtils.generateUUID());
         loginTicket.setStatus(0);
         loginTicket.setExpired(new Date(System.currentTimeMillis() + (long) duration * 1000));
-        loginTicketMapper.insertLoginTicket(loginTicket);
+//        loginTicketMapper.insertLoginTicket(loginTicket);
+        String redisKey = RedisKeyUtils.getTicketKey(loginTicket.getTicket());
+        // 会自动序列化 loginTicket 对象为字符串
+        redisTemplate.opsForValue().set(redisKey, loginTicket);
 
         // 登录成功，返回登录凭证给浏览器
         map.put("ticket", loginTicket.getTicket());
@@ -177,13 +195,42 @@ public class UserService implements NowCoderConstants {
     // 退出时需要 ticket 登录凭证来关联是哪个用户要退出
     public void logout(String ticket) {
         // 把 ticket 对应用户登录状态设为 1 即可
-        loginTicketMapper.updateStatus(ticket, 1);
         // 单纯把 status 置 1 的话，每重新登录一次，就生成一个新的 login_ticket 存入数据库
         // 是否需要删除对应 login_ticket 记录
+//        loginTicketMapper.updateStatus(ticket, 1);
+        String redisKey = RedisKeyUtils.getTicketKey(ticket);
+        LoginTicket loginTicket = (LoginTicket) redisTemplate.opsForValue().get(redisKey);
+        loginTicket.setStatus(1);
+        redisTemplate.opsForValue().set(redisKey, loginTicket);
+
     }
 
     // 更新用户头像，通过 userId 和 新头像的路径 headerUrl
     public int updateHeader(int userId, String headerUrl) {
-        return userMapper.updateHeader(userId, headerUrl);
+//        return userMapper.updateHeader(userId, headerUrl);
+        int rows = userMapper.updateHeader(userId, headerUrl);
+        // 清理缓存放在更新数据库之后，防止出现更新失败但缓存被清了的情况
+        clearCache(userId);
+        return rows;
+    }
+
+    // 1、优先从缓存中取值
+    private User getCache(int userId) {
+        String redisKey = RedisKeyUtils.getUserKey(userId);
+        return (User) redisTemplate.opsForValue().get(redisKey);
+    }
+
+    // 2、取不到值时初始化缓存数据
+    private User initCache(int userId) {
+        User user = userMapper.selectById(userId);
+        String redisKey = RedisKeyUtils.getUserKey(userId);
+        redisTemplate.opsForValue().set(redisKey, user, 3600, TimeUnit.SECONDS);
+        return user;
+    }
+
+    // 3、更新数据库时删除缓存（为了保持缓存和数据库数据一致，不选择更新缓存是因为更新可能出现并发问题）
+    private void clearCache(int userId) {
+        String redisKey = RedisKeyUtils.getUserKey(userId);
+        redisTemplate.delete(redisKey);
     }
 }

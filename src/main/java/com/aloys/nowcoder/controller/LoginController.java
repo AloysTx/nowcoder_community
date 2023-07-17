@@ -2,13 +2,16 @@ package com.aloys.nowcoder.controller;
 
 import com.aloys.nowcoder.entity.User;
 import com.aloys.nowcoder.service.UserService;
+import com.aloys.nowcoder.utils.CommonUtils;
 import com.aloys.nowcoder.utils.NowCoderConstants;
+import com.aloys.nowcoder.utils.RedisKeyUtils;
 import com.google.code.kaptcha.Producer;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -25,6 +28,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Controller
 public class LoginController implements NowCoderConstants {
@@ -35,10 +39,13 @@ public class LoginController implements NowCoderConstants {
     private String contextPath;
 
     @Autowired
-    UserService userService;
+    private UserService userService;
 
     @Autowired
-    Producer kaptchaProducer;
+    private Producer kaptchaProducer;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     // 注意，这里注解里的是浏览器访问的 url 地址
     // return 的是 templates 里的 html 文件路径
@@ -95,13 +102,20 @@ public class LoginController implements NowCoderConstants {
 
     @PostMapping("/login")
     public String login(Model model, String username, String password, String verificationCode,
-                        boolean rememberMe, HttpServletResponse response, HttpSession session) {
+                        boolean rememberMe, HttpServletResponse response/*, HttpSession session*/,
+                        @CookieValue("kaptchaOwner") String kaptchaOwner) {
         // 检查验证码
         if(StringUtils.isBlank(verificationCode)) {
             model.addAttribute("verificationCodeMsg", "验证码不能为空！");
             return "/site/login";
         }
-        String kaptcha = (String) session.getAttribute("kaptcha");
+//        String kaptcha = (String) session.getAttribute("kaptcha");
+        String kaptcha = null;
+        if(StringUtils.isNotBlank(kaptchaOwner)) {
+            String redisKey = RedisKeyUtils.getKaptchaKey(kaptchaOwner);
+            kaptcha = (String) redisTemplate.opsForValue().get(redisKey);
+        }
+
         if(StringUtils.isBlank(kaptcha) || !verificationCode.equalsIgnoreCase(kaptcha)) {
             model.addAttribute("verificationCodeMsg", "验证码错误！");
             return "/site/login";
@@ -137,13 +151,22 @@ public class LoginController implements NowCoderConstants {
 
     // 因为下次登录时要校验 验证码 是否正确，所以需要存储验证码，而验证码是敏感信息，所以用 Session
     @GetMapping("/kaptcha")
-    public void getKaptcha(HttpServletResponse response, HttpSession session) {
+    public void getKaptcha(HttpServletResponse response/*, HttpSession session*/) {
         // 生成验证码
         String text = kaptchaProducer.createText();
         BufferedImage image = kaptchaProducer.createImage(text);
 
-        // 将验证码 text 存入 session
-        session.setAttribute("kaptcha", text);
+//        // 将验证码 text 存入 session
+//        session.setAttribute("kaptcha", text);
+        // 验证码的归属
+        String kaptchaOwer = CommonUtils.generateUUID();
+        Cookie cookie = new Cookie("kaptchaOwner", kaptchaOwer);
+        cookie.setMaxAge(60);
+        cookie.setPath(contextPath);
+        response.addCookie(cookie);
+        // 将验证码存入 Redis
+        String redisKey = RedisKeyUtils.getKaptchaKey(kaptchaOwer);
+        redisTemplate.opsForValue().set(redisKey, text, 60, TimeUnit.SECONDS);
 
         // image 输出给浏览器，因为 response 对象由 SpringMVC 维护，所以不必手动关闭流
         response.setContentType("image/png");
